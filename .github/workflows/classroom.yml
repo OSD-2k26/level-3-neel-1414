@@ -1,7 +1,6 @@
-name: Git CTF Level 4 Validator
+name: Git CTF 3 Validator
 
-on:
-  push:
+on: [push]
 
 jobs:
   validate:
@@ -9,13 +8,18 @@ jobs:
     timeout-minutes: 2
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout full repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Fetch all branches
+        run: |
+          git fetch --all
+          git branch -r
 
       - name: Make validator executable
         run: chmod +x validate.sh
 
-      - name: Run Level 4 validation
+      - name: Run validator
         run: ./validate.sh
