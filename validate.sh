@@ -1,58 +1,33 @@
 #!/bin/bash
 set -e
 
-echo "🔍 Fetching all branches..."
-git fetch origin '+refs/heads/*:refs/remotes/origin/*' --quiet
+echo "🔄 Fetching all branches..."
+git fetch --all --quiet
 
-# Get remote branches
-BRANCHES=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin)
+# Create local branches for all remotes (CI fix)
+for r in $(git branch -r | grep -v '->'); do
+  git branch --track "${r#origin/}" "$r" 2>/dev/null || true
+done
 
-PATH_BRANCH=$(echo "$BRANCHES" | grep -i 'path' | head -n 1 || true)
-TRUTH_BRANCH=$(echo "$BRANCHES" | grep -i 'truth' | head -n 1 || true)
+BRANCHES=$(git branch --format='%(refname:short)' | tr '[:upper:]' '[:lower:]')
 
-if [ -z "$PATH_BRANCH" ]; then
-  echo "❌ No branch containing 'path' found"
-  exit 1
-fi
+PATH_BRANCH=$(echo "$BRANCHES" | grep 'path' | head -n 1 || true)
+TRUTH_BRANCH=$(echo "$BRANCHES" | grep 'truth' | head -n 1 || true)
 
-if [ -z "$TRUTH_BRANCH" ]; then
-  echo "❌ No branch containing 'truth' found"
-  exit 1
-fi
+[ -z "$PATH_BRANCH" ] && { echo "❌ No path branch found"; exit 1; }
+[ -z "$TRUTH_BRANCH" ] && { echo "❌ No truth branch found"; exit 1; }
 
-echo "✅ Found branches:"
-echo "   PATH  → $PATH_BRANCH"
-echo "   TRUTH → $TRUTH_BRANCH"
+echo "✅ Found branches: $PATH_BRANCH , $TRUTH_BRANCH"
 
-echo "🔁 Checking out main..."
 git checkout main >/dev/null 2>&1
 
-# Check files in main (case-insensitive)
 FILES=$(ls | tr '[:upper:]' '[:lower:]')
+echo "$FILES" | grep -qx "path.txt" || { echo "❌ path.txt missing"; exit 1; }
+echo "$FILES" | grep -qx "truth.txt" || { echo "❌ truth.txt missing"; exit 1; }
 
-echo "$FILES" | grep -qx "path.txt" || {
-  echo "❌ path.txt not found in main"
-  exit 1
-}
+MERGED=$(git branch --merged main | tr '[:upper:]' '[:lower:]')
 
-echo "$FILES" | grep -qx "truth.txt" || {
-  echo "❌ truth.txt not found in main"
-  exit 1
-}
+echo "$MERGED" | grep -q "$PATH_BRANCH" || { echo "❌ path branch not merged"; exit 1; }
+echo "$MERGED" | grep -q "$TRUTH_BRANCH" || { echo "❌ truth branch not merged"; exit 1; }
 
-echo "📦 Required files exist in main"
-
-# Check if branches are merged into main (robust way)
-MERGED_BRANCHES=$(git branch -r --merged origin/main | tr '[:upper:]' '[:lower:]')
-
-echo "$MERGED_BRANCHES" | grep -q "$(echo "$PATH_BRANCH" | tr '[:upper:]' '[:lower:]')" || {
-  echo "❌ Path branch is NOT merged into main"
-  exit 1
-}
-
-echo "$MERGED_BRANCHES" | grep -q "$(echo "$TRUTH_BRANCH" | tr '[:upper:]' '[:lower:]')" || {
-  echo "❌ Truth branch is NOT merged into main"
-  exit 1
-}
-
-echo "🎉 Level 3 Passed"
+echo "🎉 LEVEL PASSED"
